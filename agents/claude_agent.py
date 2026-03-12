@@ -8,25 +8,33 @@ logger = get_logger(__name__)
 
 client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
-def ask_cardiobot(question: str) -> dict:
+def ask_cardiobot(question: str, conversation_history: list[dict] = None) -> dict:
     """
-    Full RAG pipeline: retrieve context → build prompt → ask Claude.
-    Returns a dict with answer, sources, and context.
+    Full RAG pipeline with conversation memory.
+    - Retrieves relevant context from ChromaDB
+    - Builds prompt with context
+    - Sends full conversation history to Claude
     """
     try:
         # Step 1: Retrieve relevant context
         context, hits = retrieve_context(question)
 
-        # Step 2: Build the prompt
+        # Step 2: Build the current user message with context injected
         user_prompt = build_rag_prompt(question, context)
 
-        # Step 3: Ask Claude
-        logger.info(f"Sending question to Claude: {question[:50]}...")
+        # Step 3: Build messages array with history + current question
+        messages = []
+        if conversation_history:
+            messages.extend(conversation_history)
+        messages.append({"role": "user", "content": user_prompt})
+
+        # Step 4: Ask Claude
+        logger.info(f"Sending to Claude with {len(messages)} messages in history")
         response = client.messages.create(
             model=CLAUDE_MODEL,
             max_tokens=1024,
             system=CARDIOBOT_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_prompt}]
+            messages=messages
         )
 
         answer = response.content[0].text

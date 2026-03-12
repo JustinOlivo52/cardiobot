@@ -1,8 +1,15 @@
 import streamlit as st
 from config import APP_TITLE, APP_SUBTITLE, DISCLAIMER, check_required_keys
 from agents.claude_agent import ask_cardiobot
+from memory.conversation import ConversationMemory
 
 st.set_page_config(page_title="CardioBot", page_icon="🫀", layout="wide")
+
+# Initialize memory in session state
+if "memory" not in st.session_state:
+    st.session_state.memory = ConversationMemory()
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
 with st.sidebar:
     st.title(APP_TITLE)
@@ -14,18 +21,17 @@ with st.sidebar:
     st.write("✅ Claude"  if key_status["claude"] else "❌ Claude")
     st.write("✅ GPT-4"   if key_status["openai"] else "❌ GPT-4")
     st.divider()
+    st.metric("Messages in memory", len(st.session_state.memory))
+    st.divider()
     st.warning(DISCLAIMER)
     if st.button("🗑️ Clear Chat"):
+        st.session_state.memory.clear()
         st.session_state.messages = []
         st.rerun()
 
 st.title("🫀 CardioBot")
 st.caption("AI-Powered Clinical Cardiology Assistant — Powered by Claude + ESC Guidelines")
 st.divider()
-
-# Initialize chat history
-if "messages" not in st.session_state:
-    st.session_state.messages = []
 
 # Display chat history
 for msg in st.session_state.messages:
@@ -47,11 +53,19 @@ if question := st.chat_input("Ask a cardiology question..."):
     with st.chat_message("assistant"):
         with st.spinner("🫀 Consulting guidelines..."):
             try:
-                result = ask_cardiobot(question)
+                # Pass conversation history to Claude
+                history = st.session_state.memory.get_history()
+                result = ask_cardiobot(question, conversation_history=history)
+
+                # Update memory
+                st.session_state.memory.add_user_message(question)
+                st.session_state.memory.add_assistant_message(result["answer"])
+
                 st.markdown(result["answer"])
                 with st.expander("📚 Sources"):
                     for src, score in zip(result["sources"], result["scores"]):
                         st.caption(f"• {src} (relevance: {score})")
+
                 st.session_state.messages.append({
                     "role": "assistant",
                     "content": result["answer"],
