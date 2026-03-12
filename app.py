@@ -1,6 +1,6 @@
 import streamlit as st
 from config import APP_TITLE, APP_SUBTITLE, DISCLAIMER, check_required_keys
-from agents.graph import run_cardiobot
+from agents.consult_agent import run_consult
 from agents.ekg_agent import interpret_ekg
 from agents.dosing_agent import get_dosing_guidance
 from agents.doc_checker import check_citations
@@ -18,6 +18,8 @@ if "memory" not in st.session_state:
     st.session_state.memory = ConversationMemory()
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "last_consult" not in st.session_state:
+    st.session_state.last_consult = None
 
 # ── Sidebar ──────────────────────────────────────────────────────
 with st.sidebar:
@@ -25,14 +27,12 @@ with st.sidebar:
     st.markdown("*AI-Powered Clinical Cardiology Assistant*")
     st.divider()
 
-    # System status
     key_status = check_required_keys()
     all_systems_go = all(v for k, v in key_status.items() if k != "ollama")
     st.markdown("🟢 System Online" if all_systems_go else "🔴 System Offline")
 
     st.divider()
 
-    # Session stats
     st.markdown("### 📊 Session Stats")
     col1, col2 = st.columns(2)
     with col1:
@@ -41,13 +41,12 @@ with st.sidebar:
         st.metric("In Memory", len(st.session_state.memory))
 
     st.divider()
-
-    # Disclaimer
     st.error("⚠️ **DISCLAIMER**\n\n" + DISCLAIMER)
 
-    if st.button("🗑️ Clear Chat History", use_container_width=True):
+    if st.button("🗑️ Clear History", use_container_width=True):
         st.session_state.memory.clear()
         st.session_state.messages = []
+        st.session_state.last_consult = None
         st.rerun()
 
 # ── Main Header ──────────────────────────────────────────────────
@@ -62,18 +61,73 @@ st.markdown("""
 """, unsafe_allow_html=True)
 st.divider()
 
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "🩺 Cardiology Consult",
     "💬 Clinical Q&A",
     "📊 EKG Interpreter",
     "💊 Drug Calculator",
     "📚 Citation Checker"
 ])
 
-# ── TAB 1: Clinical Q&A ──────────────────────────────────────────
+# ── TAB 1: Cardiology Consult ────────────────────────────────────
 with tab1:
-    st.caption("🕸️ LangGraph automatically routes your question to the right tool")
+    st.markdown("### 🩺 Cardiology Consult")
+    st.caption("Present your patient naturally — CardioBot will generate a full consult report grounded in ESC guidelines")
 
-    question = st.chat_input("Ask anything about cardiology...")
+    st.markdown("""
+    **Example presentations:**
+    - *"65yo male with 2 hours of crushing chest pain radiating to left arm, diaphoretic, BP 90/60, HR 110, EKG shows ST elevation in II, III, aVF"*
+    - *"52yo female with atypical chest discomfort, known DM and HTN, troponin mildly elevated at 0.08"*
+    """)
+
+    presentation = st.text_area(
+        "Patient Presentation",
+        placeholder="Describe the patient as you would in a clinical handoff...",
+        height=120
+    )
+
+    if st.button("🩺 Run Cardiology Consult", type="primary", use_container_width=True):
+        if not presentation.strip():
+            st.warning("Please enter a patient presentation")
+        else:
+            with st.spinner("🫀 CardioBot consulting ESC guidelines..."):
+                try:
+                    result = run_consult(presentation)
+                    st.session_state.last_consult = result
+                    st.session_state.messages.append({
+                        "role": "user",
+                        "content": presentation
+                    })
+                    st.session_state.memory.add_user_message(presentation)
+                    st.session_state.memory.add_assistant_message(result["report"])
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": result["report"],
+                        "sources": result["sources"],
+                        "scores": result["scores"]
+                    })
+                except Exception as e:
+                    st.error(f"Consult failed: {str(e)[:200]}")
+
+    # Display consult report
+    if st.session_state.last_consult:
+        st.divider()
+        st.markdown(st.session_state.last_consult["report"])
+        st.divider()
+        with st.expander("📚 Guideline Sources"):
+            for src, score in zip(
+                st.session_state.last_consult["sources"],
+                st.session_state.last_consult["scores"]
+            ):
+                st.caption(f"• {src} (relevance: {score})")
+        st.warning("⚠️ For educational purposes only. Not a substitute for clinical judgment.")
+        
+# ── TAB 2: Clinical Q&A ──────────────────────────────────────────
+with tab2:
+    st.markdown("### 💬 Clinical Q&A")
+    st.caption("Ask follow-up questions about cardiology — powered by Claude + ESC Guidelines")
+
+    question = st.chat_input("Ask a cardiology question...")
 
     chat_container = st.container()
     with chat_container:
@@ -87,69 +141,39 @@ with tab1:
 
     if question:
         st.session_state.messages.append({"role": "user", "content": question})
-
-        with st.spinner("🕸️ CardioBot thinking..."):
+        with st.spinner("🫀 Consulting guidelines..."):
             try:
+                from agents.claude_agent import ask_cardiobot
                 history = st.session_state.memory.get_history()
-                result = run_cardiobot(question, conversation_history=history)
-
-                if result["type"] == "rag":
-                    answer = result["answer"]
-                    st.session_state.memory.add_user_message(question)
-                    st.session_state.memory.add_assistant_message(answer)
-                    st.session_state.messages.append({
-                        "role": "assistant",
-                        "content": answer,
-                        "sources": result["sources"],
-                        "scores": result["scores"]
-                    })
-
-                elif result["type"] == "citation":
-                    citations = result["citations"]
-                    answer = f"Found {len(citations)} relevant passages:\n\n"
-                    for c in citations[:3]:
-                        answer += f"**{c['confidence']}** — Page {c['page']}\n{c['excerpt'][:200]}...\n\n"
-                    st.session_state.memory.add_user_message(question)
-                    st.session_state.memory.add_assistant_message(answer)
-                    st.session_state.messages.append({
-                        "role": "assistant",
-                        "content": answer,
-                        "sources": [],
-                        "scores": []
-                    })
-
-                elif result["type"] in ["dosing_redirect", "ekg_redirect"]:
-                    st.session_state.messages.append({
-                        "role": "assistant",
-                        "content": result["message"],
-                        "sources": [],
-                        "scores": []
-                    })
-
+                result = ask_cardiobot(question, conversation_history=history)
+                st.session_state.memory.add_user_message(question)
+                st.session_state.memory.add_assistant_message(result["answer"])
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": result["answer"],
+                    "sources": result["sources"],
+                    "scores": result["scores"]
+                })
             except Exception as e:
                 st.session_state.messages.append({
                     "role": "assistant",
-                    "content": f"⚠️ Something went wrong: {str(e)[:200]}",
+                    "content": f"⚠️ Error: {str(e)[:200]}",
                     "sources": [],
                     "scores": []
                 })
-
         st.rerun()
 
-# ── TAB 2: EKG Interpreter ───────────────────────────────────────
-with tab2:
+# ── TAB 3: EKG Interpreter ───────────────────────────────────────
+with tab3:
     st.markdown("### 📊 EKG / ECG Interpreter")
     st.caption("Upload an EKG strip for AI-powered interpretation using Gemini Vision")
 
     col1, col2 = st.columns([2, 1])
-
     with col1:
         uploaded_file = st.file_uploader(
             "Upload EKG image",
-            type=["jpg", "jpeg", "png", "bmp", "webp"],
-            help="Upload a clear photo or scan of an EKG strip"
+            type=["jpg", "jpeg", "png", "bmp", "webp"]
         )
-
     with col2:
         st.markdown("**Supported formats:**")
         st.markdown("• JPG / JPEG\n• PNG\n• BMP\n• WebP")
@@ -166,24 +190,20 @@ with tab2:
                     st.markdown(result["interpretation"])
                     st.divider()
                     st.caption(f"Analyzed by: {result['model']}")
-                    st.warning("⚠️ This interpretation is for educational purposes only. Always confirm with a supervising physician.")
+                    st.warning("⚠️ For educational purposes only.")
                 except Exception as e:
                     st.error(f"EKG interpretation failed: {str(e)[:200]}")
     else:
-        st.info("👆 Upload an EKG image to get started. Search 'sample STEMI ECG PNG' to find test images.")
+        st.info("👆 Upload an EKG image to get started.")
 
-# ── TAB 3: Drug Calculator ───────────────────────────────────────
-with tab3:
+# ── TAB 4: Drug Calculator ───────────────────────────────────────
+with tab4:
     st.markdown("### 💊 Cardiac Drug Dosing Calculator")
     st.caption("Weight-based dosing guidance powered by GPT-4")
 
     col1, col2 = st.columns(2)
     with col1:
-        drug = st.selectbox(
-            "Select Drug",
-            options=get_available_drugs(),
-            help="Choose a cardiac medication"
-        )
+        drug = st.selectbox("Select Drug", options=get_available_drugs())
     with col2:
         weight = st.number_input(
             "Patient Weight (kg)",
@@ -195,7 +215,7 @@ with tab3:
 
     context = st.text_input(
         "Clinical Context (optional)",
-        placeholder="e.g. STEMI patient in cardiogenic shock, age 65, no renal impairment"
+        placeholder="e.g. STEMI patient in cardiogenic shock, age 65"
     )
 
     if st.button("💊 Calculate Dose", type="primary", use_container_width=True):
@@ -204,7 +224,6 @@ with tab3:
                 result = get_dosing_guidance(drug, weight, context)
                 if "error" in result:
                     st.error(result["error"])
-                    st.info(f"Available drugs: {result.get('available_drugs', '')}")
                 else:
                     st.success(f"✅ Dosing guidance for **{result['drug']}**")
                     col1, col2, col3 = st.columns(3)
@@ -217,19 +236,18 @@ with tab3:
                     st.divider()
                     st.markdown("### 📋 Clinical Guidance")
                     st.markdown(result["guidance"])
-                    st.divider()
-                    st.warning("⚠️ **High Alert Medication** — Always verify doses with pharmacy and follow institutional protocols before administration.")
+                    st.warning("⚠️ Always verify with pharmacy and institutional protocols.")
             except Exception as e:
                 st.error(f"Dosing calculation failed: {str(e)[:200]}")
 
-# ── TAB 4: Citation Checker ──────────────────────────────────────
-with tab4:
+# ── TAB 5: Citation Checker ──────────────────────────────────────
+with tab5:
     st.markdown("### 📚 Citation Checker")
     st.caption("Search 895 indexed passages from the 2023 ESC ACS Guidelines")
 
     search_query = st.text_input(
         "Search Guidelines",
-        placeholder="e.g. troponin rule-out algorithm, door-to-balloon time, antiplatelet therapy"
+        placeholder="e.g. troponin rule-out algorithm, door-to-balloon time"
     )
 
     col1, col2 = st.columns([3, 1])
@@ -244,9 +262,9 @@ with tab4:
                 try:
                     citations = check_citations(search_query, n_results=n_results)
                     if not citations:
-                        st.warning("No results found. Try different search terms.")
+                        st.warning("No results found.")
                     else:
-                        st.success(f"Found {len(citations)} relevant passages from the ESC Guidelines")
+                        st.success(f"Found {len(citations)} relevant passages")
                         st.divider()
                         for cite in citations:
                             with st.expander(
