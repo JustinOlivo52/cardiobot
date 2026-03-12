@@ -1,0 +1,15 @@
+streamlit
+anthropic
+openai
+google-generativeai
+langchain
+langgraph
+langchain-community
+langchain-google-genai
+langchain-text-splitters
+chromadb
+pypdf
+Pillow
+python-dotenv
+pydantic
+tenacity
