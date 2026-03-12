@@ -1,25 +1,24 @@
-import os
 import time
 import chromadb
-from google import genai
-from config import GOOGLE_API_KEY, CHROMA_PERSIST_DIR, CHROMA_COLLECTION
+from openai import OpenAI
+from config import OPENAI_API_KEY, CHROMA_PERSIST_DIR, CHROMA_COLLECTION
 from utils.logger import get_logger, CardioRetrievalError
 
 logger = get_logger(__name__)
 
-EMBED_MODEL = "gemini-embedding-001"
+EMBED_MODEL = "text-embedding-3-small"
 
-client = genai.Client(api_key=GOOGLE_API_KEY)
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 def get_chroma_client():
     return chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
 
 def get_embedding(text: str) -> list[float]:
-    result = client.models.embed_content(
+    response = client.embeddings.create(
         model=EMBED_MODEL,
-        contents=text
+        input=text
     )
-    return result.embeddings[0].values
+    return response.data[0].embedding
 
 def build_vector_store(chunks: list[str], source_name: str):
     try:
@@ -37,7 +36,7 @@ def build_vector_store(chunks: list[str], source_name: str):
         total = len(chunks)
         logger.info(f"Embedding {total - already_done} remaining chunks from {source_name}...")
 
-        batch_size = 5
+        batch_size = 20
         for i in range(already_done, total, batch_size):
             batch = chunks[i:i+batch_size]
             embeddings = [get_embedding(chunk) for chunk in batch]
@@ -51,7 +50,6 @@ def build_vector_store(chunks: list[str], source_name: str):
                 metadatas=metadatas
             )
             logger.info(f"  [{i+len(batch)}/{total}] chunks embedded")
-            time.sleep(0.7)
 
         logger.info(f"✅ Done! {total} chunks stored for {source_name}")
         return collection
@@ -64,10 +62,10 @@ def query_vector_store(query: str, n_results: int = 3) -> list[dict]:
         chroma = get_chroma_client()
         collection = chroma.get_collection(CHROMA_COLLECTION)
 
-        query_embedding = client.models.embed_content(
+        query_embedding = client.embeddings.create(
             model=EMBED_MODEL,
-            contents=query
-        ).embeddings[0].values
+            input=query
+        ).data[0].embedding
 
         results = collection.query(
             query_embeddings=[query_embedding],

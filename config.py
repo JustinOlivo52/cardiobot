@@ -10,7 +10,7 @@ OLLAMA_MODEL       = os.getenv("OLLAMA_MODEL", "llama3")
 
 GEMINI_EMBED_MODEL  = "text-embedding-004"
 GEMINI_VISION_MODEL = "gemini-1.5-flash"
-CLAUDE_MODEL        = "claude-3-5-sonnet-20241022"
+CLAUDE_MODEL        = "claude-sonnet-4-5"
 GPT4_MODEL          = "gpt-4o"
 
 RETRIEVAL_TOP_K     = int(os.getenv("RETRIEVAL_TOP_K", "3"))
