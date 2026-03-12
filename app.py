@@ -3,6 +3,7 @@ from config import APP_TITLE, APP_SUBTITLE, DISCLAIMER, check_required_keys
 from agents.claude_agent import ask_cardiobot
 from agents.ekg_agent import interpret_ekg
 from agents.dosing_agent import get_dosing_guidance
+from agents.doc_checker import check_citations
 from tools.calculator import get_available_drugs
 from memory.conversation import ConversationMemory
 
@@ -35,7 +36,12 @@ st.title("🫀 CardioBot")
 st.caption("AI-Powered Clinical Cardiology Assistant — Powered by Claude + ESC Guidelines")
 st.divider()
 
-tab1, tab2, tab3 = st.tabs(["💬 Clinical Q&A", "📊 EKG Interpreter", "💊 Drug Calculator"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "💬 Clinical Q&A",
+    "📊 EKG Interpreter",
+    "💊 Drug Calculator",
+    "📚 Citation Checker"
+])
 
 # ── TAB 1: Clinical Q&A ──────────────────────────────────────────
 with tab1:
@@ -105,14 +111,12 @@ with tab3:
     st.caption("Weight-based dosing guidance powered by GPT-4")
 
     col1, col2 = st.columns(2)
-
     with col1:
         drug = st.selectbox(
             "Select Drug",
             options=get_available_drugs(),
             help="Choose a cardiac medication"
         )
-
     with col2:
         weight = st.number_input(
             "Patient Weight (kg)",
@@ -131,12 +135,10 @@ with tab3:
         with st.spinner("⚕️ GPT-4 calculating dosing guidance..."):
             try:
                 result = get_dosing_guidance(drug, weight, context)
-
                 if "error" in result:
                     st.error(result["error"])
                 else:
                     st.success(f"✅ Dosing guidance for {result['drug']}")
-
                     col1, col2, col3 = st.columns(3)
                     with col1:
                         st.metric("Drug", result["drug"])
@@ -144,11 +146,49 @@ with tab3:
                         st.metric("Patient Weight", f"{result['weight_kg']} kg")
                     with col3:
                         st.metric("Calculated Bolus", result["calculated_bolus"])
-
                     st.divider()
                     st.markdown("### 📋 Clinical Guidance")
                     st.markdown(result["guidance"])
                     st.warning("⚠️ Always verify doses with pharmacy and institutional protocols.")
-
             except Exception as e:
                 st.error(f"Error: {e}")
+
+# ── TAB 4: Citation Checker ──────────────────────────────────────
+with tab4:
+    st.subheader("📚 Citation Checker")
+    st.caption("Search the ESC guidelines directly and see exactly where information comes from")
+
+    search_query = st.text_input(
+        "Search Guidelines",
+        placeholder="e.g. troponin rule-out algorithm, STEMI door-to-balloon time"
+    )
+
+    n_results = st.slider("Number of results", min_value=1, max_value=10, value=5)
+
+    if st.button("🔍 Search Guidelines", type="primary"):
+        if not search_query:
+            st.warning("Please enter a search query")
+        else:
+            with st.spinner("🔍 Searching guidelines..."):
+                try:
+                    citations = check_citations(search_query, n_results=n_results)
+
+                    if not citations:
+                        st.warning("No results found")
+                    else:
+                        st.success(f"Found {len(citations)} relevant passages")
+                        st.divider()
+
+                        for cite in citations:
+                            with st.expander(
+                                f"#{cite['rank']} — {cite['confidence']} confidence "
+                                f"(score: {cite['score']}) — Page {cite['page']}"
+                            ):
+                                st.caption(f"**Source:** {cite['source']}")
+                                st.caption(f"**Section:** {cite['heading']}")
+                                st.caption(f"**Relevance Score:** {cite['score']}")
+                                st.divider()
+                                st.markdown(cite['excerpt'])
+
+                except Exception as e:
+                    st.error(f"Citation search failed: {e}")
