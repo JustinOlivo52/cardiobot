@@ -1,5 +1,7 @@
 # 🫀 CardioBot — AI-Powered Clinical Cardiology Assistant
 
+**🔴 Live Demo: [cardiodoc.streamlit.app](https://cardiodoc.streamlit.app/)**
+
 > A multi-LLM agentic RAG system built for clinical cardiology support, powered by Claude, Gemini, and GPT-4.
 
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
