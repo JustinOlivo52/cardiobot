@@ -1,45 +1,39 @@
 import os
-from dotenv import load_dotenv
-load_dotenv()
 
-GOOGLE_API_KEY     = os.getenv("GOOGLE_API_KEY")
-ANTHROPIC_API_KEY  = os.getenv("ANTHROPIC_API_KEY")
-OPENAI_API_KEY     = os.getenv("OPENAI_API_KEY")
-OLLAMA_BASE_URL    = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_MODEL       = os.getenv("OLLAMA_MODEL", "llama3")
+try:
+    import streamlit as st
+    def get_secret(key: str) -> str:
+        try:
+            return st.secrets[key]
+        except Exception:
+            return os.getenv(key, "")
+except Exception:
+    def get_secret(key: str) -> str:
+        return os.getenv(key, "")
 
-GEMINI_EMBED_MODEL  = "text-embedding-004"
-GEMINI_VISION_MODEL = "gemini-1.5-flash"
-CLAUDE_MODEL        = "claude-sonnet-4-5"
-GPT4_MODEL          = "gpt-4o"
+# ── API Keys ─────────────────────────────────────────────────────
+ANTHROPIC_API_KEY = get_secret("ANTHROPIC_API_KEY")
+GOOGLE_API_KEY    = get_secret("GOOGLE_API_KEY")
+OPENAI_API_KEY    = get_secret("OPENAI_API_KEY")
 
-RETRIEVAL_TOP_K     = int(os.getenv("RETRIEVAL_TOP_K", "3"))
-RETRIEVAL_MIN_SCORE = float(os.getenv("RETRIEVAL_MIN_SCORE", "0.3"))
-CHUNK_SIZE          = 1000
-CHUNK_OVERLAP       = 200
+# ── Model Names ───────────────────────────────────────────────────
+CLAUDE_MODEL      = "claude-sonnet-4-5"
+GPT4_MODEL        = "gpt-4o"
+VISION_MODEL      = "gemini-2.5-flash"
 
-CHROMA_PERSIST_DIR  = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")
+# ── App Settings ──────────────────────────────────────────────────
+APP_TITLE         = "CardioBot"
+APP_SUBTITLE      = "AI-Powered Clinical Cardiology Assistant"
+DISCLAIMER        = "CardioBot is for educational purposes only and is not a substitute for clinical judgment."
+
+# ── ChromaDB Settings ─────────────────────────────────────────────
+CHROMA_PERSIST_DIR  = "./chroma_db"
 CHROMA_COLLECTION   = "cardiobot_docs"
 
-APP_TITLE     = "🫀 CardioBot"
-APP_SUBTITLE  = "AI-Powered Clinical Cardiology Assistant"
-DISCLAIMER    = (
-    "⚠️ For educational use only. "
-    "CardioBot is not a substitute for clinical judgment. "
-    "Always confirm AI interpretations with a supervising physician."
-)
-
-def check_required_keys():
+def check_required_keys() -> dict:
     return {
-        "gemini":  bool(GOOGLE_API_KEY),
-        "claude":  bool(ANTHROPIC_API_KEY),
-        "openai":  bool(OPENAI_API_KEY),
-        "ollama":  False,
+        "anthropic": bool(ANTHROPIC_API_KEY),
+        "gemini":    bool(GOOGLE_API_KEY),
+        "openai":    bool(OPENAI_API_KEY),
+        "ollama":    False
     }
-
-def get_missing_required_keys():
-    missing = []
-    if not GOOGLE_API_KEY:     missing.append("GOOGLE_API_KEY")
-    if not ANTHROPIC_API_KEY:  missing.append("ANTHROPIC_API_KEY")
-    if not OPENAI_API_KEY:     missing.append("OPENAI_API_KEY")
-    return missing
