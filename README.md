@@ -189,7 +189,7 @@ CardioBot is designed for **educational purposes only**. It is not a substitute 
 
 Built by **Justin Olivo** — Emergency Room Technician transitioning into Health Tech AI.
 
-This project combines 5+ years of clinical ER experience with modern AI engineering to build tools that solve real problems in clinical environments.
+This project combines 10+ years of clinical ER experience with modern AI engineering to build tools that solve real problems in clinical environments.
 
 - 🔗 [LinkedIn](https://linkedin.com/in/justin-olivo52)
 - 🐙 [GitHub](https://github.com/JustinOlivo52)
