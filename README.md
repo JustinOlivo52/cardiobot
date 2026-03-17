@@ -191,7 +191,7 @@ Built by **Justin Olivo** — Emergency Room Technician transitioning into Healt
 
 This project combines 5+ years of clinical ER experience with modern AI engineering to build tools that solve real problems in clinical environments.
 
-- 🔗 [LinkedIn]([https://linkedin.com/in/justin-olivo52])
+- 🔗 [LinkedIn](https://linkedin.com/in/justin-olivo52)
 - 🐙 [GitHub](https://github.com/JustinOlivo52)
 
 ---
