@@ -198,10 +198,24 @@ This project combines 10+ years of clinical ER experience with modern AI enginee
 
 ## 🗺️ Roadmap
 
+### ✅ Completed
+- [x] Multi-agent LangGraph architecture with semantic router
+- [x] Hybrid RAG pipeline with ChromaDB + OpenAI embeddings
+- [x] EKG interpretation via Gemini Vision
+- [x] Weight-based drug dosing calculator
+- [x] Citation checker with confidence scoring
+- [x] Evaluation harness across 5 clinical test cases
+- [x] Deployed to Streamlit Cloud
+
+### 🔜 In Progress
+- [ ] Async streaming responses for real-time agent output
+
+### 📋 Planned
 - [ ] Add AHA and ACC guideline PDFs
-- [ ] Re-ingest with page number metadata
-- [ ] Drug dose safety limiters
-- [ ] Pediatric weight-based adjustments
-- [ ] Deploy to Streamlit Cloud
-- [ ] Add evaluation benchmarks
+- [ ] Re-ingest with page number metadata for precise citations
+- [ ] Drug dose safety limiters and contraindication flagging
+- [ ] Pediatric weight-based dosing adjustments
+- [ ] Migrate to FastAPI backend for production scaling
+- [ ] LangSmith / RAGAS integration for continuous eval monitoring
+
 
