@@ -232,7 +232,14 @@ with tab4:
                     with col2:
                         st.metric("Patient Weight", f"{result['weight_kg']} kg")
                     with col3:
-                        st.metric("Calculated Bolus", result["calculated_bolus"])
+                        dose_label = (
+                            "Calculated Infusion Rate"
+                            if result.get("dose_type") == "infusion"
+                            else "Calculated Bolus"
+                        )
+                        st.metric(dose_label, result["calculated_dose"])
+                    if result.get("dose_capped"):
+                        st.warning(f"⚠️ {result['cap_note']}")
                     st.divider()
                     st.markdown("### 📋 Clinical Guidance")
                     st.markdown(result["guidance"])
@@ -243,7 +250,7 @@ with tab4:
 # ── TAB 5: Citation Checker ──────────────────────────────────────
 with tab5:
     st.markdown("### 📚 Citation Checker")
-    st.caption("Search 895 indexed passages from the 2023 ESC ACS Guidelines")
+    st.caption("Search 947 indexed passages from the 2023 ESC ACS Guidelines")
 
     search_query = st.text_input(
         "Search Guidelines",

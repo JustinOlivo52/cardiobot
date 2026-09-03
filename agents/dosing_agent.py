@@ -46,7 +46,8 @@ Clinical Context: {clinical_context or 'Standard dosing request'}
 Pre-calculated dose information:
 - IV Bolus: {dose_info.get('iv_bolus', 'N/A')}
 - Infusion: {dose_info.get('infusion', 'N/A')}
-- Weight-based calculated dose: {dose_info.get('calculated_bolus', 'Fixed dose - not weight based')}
+- Weight-based calculated {dose_info.get('dose_type', 'dose')}: {dose_info.get('calculated_dose', 'Fixed dose - not weight based')}
+- Dose cap applied: {dose_info.get('cap_note', 'No')}
 - Notes: {dose_info.get('notes', 'None')}
 
 Please provide complete clinical dosing guidance for this patient.
@@ -70,7 +71,10 @@ Please provide complete clinical dosing guidance for this patient.
             "drug": drug.upper(),
             "weight_kg": weight_kg,
             "indication": dose_info.get("indication"),
-            "calculated_bolus": dose_info.get("calculated_bolus", "Fixed dose"),
+            "calculated_dose": dose_info.get("calculated_dose", "Fixed dose"),
+            "dose_type": dose_info.get("dose_type"),
+            "dose_capped": dose_info.get("dose_capped", False),
+            "cap_note": dose_info.get("cap_note"),
             "iv_bolus": dose_info.get("iv_bolus"),
             "infusion": dose_info.get("infusion"),
             "guidance": guidance,
