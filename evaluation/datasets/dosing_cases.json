@@ -1,0 +1,20 @@
+[
+  {"id": "dose-001", "drug": "heparin", "weight_kg": 70, "expect_error": false, "expected_dose": "4200.0 units", "expected_dose_type": "bolus", "expect_capped": false},
+  {"id": "dose-002", "drug": "heparin", "weight_kg": 300, "expect_error": false, "expected_dose": "5000.0 units", "expected_dose_type": "bolus", "expect_capped": true},
+  {"id": "dose-003", "drug": "heparin", "weight_kg": 83.33, "expect_error": false, "expected_dose": "4999.8 units", "expected_dose_type": "bolus", "expect_capped": false},
+  {"id": "dose-004", "drug": "heparin", "weight_kg": 83.34, "expect_error": false, "expected_dose": "5000.0 units", "expected_dose_type": "bolus", "expect_capped": true},
+  {"id": "dose-005", "drug": "heparin", "weight_kg": 40, "expect_error": false, "expected_dose": "2400.0 units", "expected_dose_type": "bolus", "expect_capped": false},
+  {"id": "dose-006", "drug": "lidocaine", "weight_kg": 80, "expect_error": false, "expected_dose": "120.0 mg", "expected_dose_type": "bolus", "expect_capped": false},
+  {"id": "dose-007", "drug": "lidocaine", "weight_kg": 1, "expect_error": false, "expected_dose": "1.5 mg", "expected_dose_type": "bolus", "expect_capped": false},
+  {"id": "dose-008", "drug": "epinephrine", "weight_kg": 70, "expect_error": false, "expected_dose": "7.0 mcg/min", "expected_dose_type": "infusion", "expect_capped": false},
+  {"id": "dose-009", "drug": "epinephrine", "weight_kg": 120, "expect_error": false, "expected_dose": "12.0 mcg/min", "expected_dose_type": "infusion", "expect_capped": false},
+  {"id": "dose-010", "drug": "amiodarone", "weight_kg": 70, "expect_error": false, "expected_dose": null, "expected_dose_type": null, "expect_capped": null},
+  {"id": "dose-011", "drug": "metoprolol", "weight_kg": 70, "expect_error": false, "expected_dose": null, "expected_dose_type": null, "expect_capped": null},
+  {"id": "dose-012", "drug": "nitroglycerin", "weight_kg": 70, "expect_error": false, "expected_dose": null, "expected_dose_type": null, "expect_capped": null},
+  {"id": "dose-013", "drug": "atropine", "weight_kg": 70, "expect_error": false, "expected_dose": null, "expected_dose_type": null, "expect_capped": null},
+  {"id": "dose-014", "drug": "adenosine", "weight_kg": 70, "expect_error": false, "expected_dose": null, "expected_dose_type": null, "expect_capped": null},
+  {"id": "dose-015", "drug": "amoxicillin", "weight_kg": 70, "expect_error": true, "expected_dose": null, "expected_dose_type": null, "expect_capped": null},
+  {"id": "dose-016", "drug": "heparin", "weight_kg": 0, "expect_error": true, "expected_dose": null, "expected_dose_type": null, "expect_capped": null},
+  {"id": "dose-017", "drug": "heparin", "weight_kg": -10, "expect_error": true, "expected_dose": null, "expected_dose_type": null, "expect_capped": null},
+  {"id": "dose-018", "drug": "  HEPARIN ", "weight_kg": 70, "expect_error": false, "expected_dose": "4200.0 units", "expected_dose_type": "bolus", "expect_capped": false}
+]

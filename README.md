@@ -76,7 +76,7 @@ Streamlit UI (Dark Theme, Multi-Tab)
 
 ### 💬 Clinical Q&A
 - RAG pipeline grounded in 2023 ESC ACS Guidelines
-- 895 indexed passages with semantic search
+- 947 indexed passages with semantic search
 - Source citations with relevance scores
 - Multi-turn conversation memory
 
@@ -156,6 +156,17 @@ cardiobot/
 │   └── clinical_prompts.py # System prompts
 ├── utils/
 │   └── logger.py           # Structured logging + exceptions
+├── evaluation/
+│   ├── run.py              # Eval CLI runner (gates + exit codes)
+│   ├── checks.py           # Deterministic checks (pure functions)
+│   ├── judge.py            # Claude LLM-as-judge grading
+│   ├── cache.py            # Content-hash response cache
+│   ├── report.py           # JSON/markdown reports + regression diff
+│   ├── page_map.py         # Chunk → guideline page mapping
+│   ├── label_helper.py     # Ground-truth labeling CLI
+│   ├── *_eval.py           # retrieval / qa / consult / dosing suites
+│   └── datasets/           # Golden datasets + page map
+├── tests/                  # pytest suite (no API keys required)
 └── data/
     └── sample_docs/        # PDF guidelines
 ```
@@ -165,7 +176,7 @@ cardiobot/
 ## ⚕️ Clinical Data Sources
 
 - **2023 ESC Guidelines for the Management of Acute Coronary Syndromes**
-  - 107 pages, 895 indexed passages
+  - 107 pages, 947 indexed passages
   - Covers: ACS, STEMI, NSTEMI, antiplatelet therapy, anticoagulation, reperfusion
 
 ---
@@ -176,6 +187,57 @@ ANTHROPIC_API_KEY=your_key_here
 GOOGLE_API_KEY=your_key_here
 OPENAI_API_KEY=your_key_here
 ```
+
+---
+
+## 🧪 Evaluation
+
+CardioBot is evaluated in three layers, cheapest first, so most of the suite runs free and in CI.
+
+### What is measured
+
+| Layer | Metrics | Cost |
+|---|---|---|
+| **Deterministic** | Dose math + max-dose caps, consult report structure, refusal behavior, disclaimer rate, ungrounded-number tripwire | Free, no API keys |
+| **Retrieval** | `hit_rate@k`, `page_recall@k`, MRR against page-level ground truth (k = 1, 3, 5, 10) | Query embeddings only |
+| **LLM-as-judge** | Correctness vs. reference answer, faithfulness to retrieved context, refusal appropriateness, safety flags | Opt-in `--judge`, cached |
+
+**`hit_rate@3` is the headline retrieval metric** — the Q&A pipeline feeds exactly the top 3 chunks to Claude, so k=3 is what actually reaches the model. The curve out to k=10 separates ranking problems (found at 10, missed at 3) from corpus problems (never found).
+
+The judge runs Claude at `temperature=0` and returns structured JSON (two 1-5 scores, safety flags, and a rationale). A case passes only with correctness ≥ 4, faithfulness ≥ 4, and zero safety flags.
+
+### Datasets
+
+| File | Size | Contents |
+|---|---|---|
+| `evaluation/datasets/qa_cases.jsonl` | 32 | 26 standard ACS questions across 7 categories + 6 refusal/out-of-scope cases |
+| `evaluation/datasets/consult_cases.jsonl` | 7 | Patient presentations with reference key points |
+| `evaluation/datasets/dosing_cases.json` | 18 | All 8 drugs, edge weights, cap boundaries, invalid inputs |
+
+Reference answers were written against the 2023 ESC ACS guidelines, and `expected_pages` labels were verified against the source PDF using `evaluation/label_helper.py`.
+
+### Running it
+
+```bash
+pytest -q                                    # 84 tests, no API keys needed
+python -m evaluation.run --suite dosing      # free safety suite
+python -m evaluation.run --suite retrieval   # embeddings only
+python -m evaluation.run --judge             # full run, all suites
+```
+
+Every run writes a timestamped JSON and markdown report to `evaluation/results/`, diffs against the previous run, and **exits nonzero** on any gate violation or regression. Gates live in a visible `GATES` dict in `evaluation/report.py`: dosing 100%, consult structure 100%, `hit_rate@3` ≥ 0.80, MRR ≥ 0.60, refusals 100%, judge correctness ≥ 4.0, zero safety flags. Any metric dropping more than 5 points from the previous run fails the run even if it clears its floor.
+
+LLM responses are cached by content hash (`evaluation/.cache/`), so a first full run costs roughly $1.50-3.00 and reruns with nothing changed cost close to nothing.
+
+### Ground truth honesty
+
+Retrieval labels are page-level, not chunk-level, because chunks were split across page boundaries at ingest. `label_helper.py --grep` does a free keyword scan of all 947 chunks specifically so relevant pages the retriever *misses* can be labeled too — otherwise the ground truth would only ever contain what the retriever already finds, and the scores would flatter themselves.
+
+### Known limitations
+
+- Single-turn only. Conversation history is stored raw while the API receives the RAG-augmented prompt, so multi-turn evals would need to replicate that asymmetry.
+- The EKG vision path has no evals yet; that needs a labeled image set.
+- The `ungrounded_numbers` check matches on normalized number-and-unit strings, so rephrasings can produce false positives. It is a signal to inspect, not an automatic failure.
 
 ---
 
@@ -204,7 +266,9 @@ This project combines 10+ years of clinical ER experience with modern AI enginee
 - [x] EKG interpretation via Gemini Vision
 - [x] Weight-based drug dosing calculator
 - [x] Citation checker with confidence scoring
-- [x] Evaluation harness across 5 clinical test cases
+- [x] Evaluation suite: retrieval metrics, deterministic safety checks, LLM-as-judge grading
+- [x] Drug dose safety limiters (max-dose caps)
+- [x] Automated test suite (84 tests) + GitHub Actions CI
 - [x] Deployed to Streamlit Cloud
 
 ### 🔜 In Progress
@@ -213,9 +277,10 @@ This project combines 10+ years of clinical ER experience with modern AI enginee
 ### 📋 Planned
 - [ ] Add AHA and ACC guideline PDFs
 - [ ] Re-ingest with page number metadata for precise citations
-- [ ] Drug dose safety limiters and contraindication flagging
+- [ ] Contraindication flagging beyond free-text notes
+- [ ] EKG interpretation evals (needs a labeled EKG image set)
+- [ ] Multi-turn conversation evals
 - [ ] Pediatric weight-based dosing adjustments
 - [ ] Migrate to FastAPI backend for production scaling
-- [ ] LangSmith / RAGAS integration for continuous eval monitoring
 
 

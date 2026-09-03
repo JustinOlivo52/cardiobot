@@ -82,6 +82,7 @@ def query_vector_store(query: str, n_results: int = 3) -> list[dict]:
             hits.append({
                 "text": doc,
                 "source": meta['source'],
+                "chunk_index": meta.get('chunk_index'),
                 "score": round(1 - dist, 3)
             })
 

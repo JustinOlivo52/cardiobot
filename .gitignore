@@ -1,6 +1,10 @@
 .env
 .streamlit/secrets.toml
 __pycache__/
+evaluation/.cache/
+evaluation/results/*.json
+evaluation/results/*.md
+!evaluation/results/.gitkeep
 *.pyc
 *.pyo
 .python-version

@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      # No API keys are configured for this workflow, so nothing here can
+      # make a paid call. The full evaluation run (--judge) is a local step.
+      - name: Unit tests and dataset validation
+        run: pytest -q
+
+      - name: Dosing safety evaluation
+        run: python -m evaluation.run --suite dosing
