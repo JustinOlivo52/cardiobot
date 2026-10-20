@@ -29,9 +29,9 @@ def check_citations(query: str, n_results: int = 5) -> list[dict]:
     citations = []
     for i, hit in enumerate(hits):
         # Extract page number from text if present
-        page_num = "Unknown"
+        page_num = hit.get("page") or "Unknown"
         text = hit["text"]
-        if "[Page " in text:
+        if page_num == "Unknown" and "[Page " in text:
             try:
                 page_start = text.index("[Page ") + 6
                 page_end = text.index("]", page_start)

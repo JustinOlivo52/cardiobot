@@ -88,8 +88,10 @@ def _semantic_search(query: str, n_results: int) -> list[dict]:
         include=["documents", "metadatas", "distances"]
     )
 
+    page_map = _load_page_map()
     hits = []
-    for doc, meta, dist in zip(
+    for chunk_id, doc, meta, dist in zip(
+        results['ids'][0],
         results['documents'][0],
         results['metadatas'][0],
         results['distances'][0]
@@ -97,10 +99,40 @@ def _semantic_search(query: str, n_results: int) -> list[dict]:
         hits.append({
             "text": doc,
             "source": meta['source'],
+            "page": page_map.get(chunk_id),
             "score": round(1 - dist, 3)
         })
 
     return hits
+
+# ── Page lookup ───────────────────────────────────────────────────
+# Only the chunk where a page begins carries its "[Page N]" marker, so walk
+# each source's chunks in order and carry the last page seen forward.
+_PAGE_RE = re.compile(r"\[Page (\d+)\]")
+
+@lru_cache(maxsize=1)
+def _load_all_chunks():
+    collection = get_chroma_client().get_collection(CHROMA_COLLECTION)
+    data = collection.get(include=["documents", "metadatas"])
+    return data["ids"], data["documents"], data["metadatas"]
+
+@lru_cache(maxsize=1)
+def _load_page_map() -> dict:
+    ids, docs, metas = _load_all_chunks()
+    order = sorted(range(len(ids)), key=lambda i: (metas[i]["source"], metas[i].get("chunk_index", 0)))
+
+    page_map, current, current_source = {}, None, None
+    for i in order:
+        if metas[i]["source"] != current_source:
+            current, current_source = None, metas[i]["source"]
+        markers = list(_PAGE_RE.finditer(docs[i]))
+        # A marker near the start (inside the chunk overlap) means the chunk begins on that page
+        if markers and markers[0].start() < 200:
+            current = markers[0].group(1)
+        page_map[ids[i]] = current
+        if markers:
+            current = markers[-1].group(1)
+    return page_map
 
 # ── Keyword fallback (BM25 over the stored chunks, no API needed) ──
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
@@ -110,18 +142,17 @@ def _tokenize(text: str) -> list[str]:
 
 @lru_cache(maxsize=1)
 def _load_keyword_index():
-    collection = get_chroma_client().get_collection(CHROMA_COLLECTION)
-    data = collection.get(include=["documents", "metadatas"])
-    docs, metas = data["documents"], data["metadatas"]
+    ids, docs, metas = _load_all_chunks()
     term_counts = [Counter(_tokenize(d)) for d in docs]
     lengths = [sum(tc.values()) for tc in term_counts]
     doc_freq = Counter(t for tc in term_counts for t in tc)
     avg_len = sum(lengths) / max(len(lengths), 1)
     logger.info(f"Keyword index built over {len(docs)} chunks")
-    return docs, metas, term_counts, lengths, doc_freq, avg_len
+    return ids, docs, metas, term_counts, lengths, doc_freq, avg_len
 
 def _keyword_search(query: str, n_results: int, k1: float = 1.5, b: float = 0.75) -> list[dict]:
-    docs, metas, term_counts, lengths, doc_freq, avg_len = _load_keyword_index()
+    ids, docs, metas, term_counts, lengths, doc_freq, avg_len = _load_keyword_index()
+    page_map = _load_page_map()
     n_docs = len(docs)
     terms = set(_tokenize(query))
 
@@ -134,6 +165,9 @@ def _keyword_search(query: str, n_results: int, k1: float = 1.5, b: float = 0.75
                 continue
             idf = math.log(1 + (n_docs - doc_freq[t] + 0.5) / (doc_freq[t] + 0.5))
             score += idf * f * (k1 + 1) / (f + k1 * (1 - b + b * lengths[i] / avg_len))
+        # Reference-list chunks match lots of keywords but aren't useful passages
+        if docs[i].count("doi.org") >= 3:
+            score *= 0.2
         scores.append(score)
 
     ranked = sorted(range(n_docs), key=lambda i: scores[i], reverse=True)[:n_results]
@@ -144,5 +178,6 @@ def _keyword_search(query: str, n_results: int, k1: float = 1.5, b: float = 0.75
     return [{
         "text": docs[i],
         "source": metas[i]["source"],
+        "page": page_map.get(ids[i]),
         "score": round(0.8 * scores[i] / top, 3)
     } for i in ranked if scores[i] > 0]

@@ -6,6 +6,7 @@ from agents.dosing_agent import get_dosing_guidance
 from agents.doc_checker import check_citations
 from tools.calculator import get_available_drugs
 from memory.conversation import ConversationMemory
+from utils.logger import friendly_error
 
 st.set_page_config(
     page_title="CardioBot",
@@ -107,7 +108,7 @@ with tab1:
                         "scores": result["scores"]
                     })
                 except Exception as e:
-                    st.error(f"Consult failed: {str(e)[:200]}")
+                    st.error(friendly_error(e, "The consult"))
 
     # Display consult report
     if st.session_state.last_consult:
@@ -125,7 +126,7 @@ with tab1:
 # ── TAB 2: Clinical Q&A ──────────────────────────────────────────
 with tab2:
     st.markdown("### 💬 Clinical Q&A")
-    st.caption("Ask follow-up questions about cardiology — powered by Claude + ESC Guidelines")
+    st.caption("Ask follow-up questions about cardiology — LangGraph routes each question to the right tool (Claude + ESC Guidelines, citations, dosing, or EKG)")
 
     question = st.chat_input("Ask a cardiology question...")
 
@@ -143,21 +144,37 @@ with tab2:
         st.session_state.messages.append({"role": "user", "content": question})
         with st.spinner("🫀 Consulting guidelines..."):
             try:
-                from agents.claude_agent import ask_cardiobot
+                from agents.graph import run_cardiobot
                 history = st.session_state.memory.get_history()
-                result = ask_cardiobot(question, conversation_history=history)
-                st.session_state.memory.add_user_message(question)
-                st.session_state.memory.add_assistant_message(result["answer"])
+                result = run_cardiobot(question, conversation_history=history)
+
+                if result["type"] == "rag":
+                    content = result["answer"]
+                    sources, scores = result["sources"], result["scores"]
+                    st.session_state.memory.add_user_message(question)
+                    st.session_state.memory.add_assistant_message(content)
+                elif result["type"] == "citation":
+                    lines = ["📚 **Matching guideline passages:**"]
+                    for cite in result["citations"]:
+                        lines.append(
+                            f"\n**#{cite['rank']}** — {cite['confidence']} | Page {cite['page']}\n\n> {cite['excerpt']}"
+                        )
+                    content = "\n".join(lines)
+                    sources = [c["source"] for c in result["citations"]]
+                    scores = [c["score"] for c in result["citations"]]
+                else:
+                    content, sources, scores = result["message"], [], []
+
                 st.session_state.messages.append({
                     "role": "assistant",
-                    "content": result["answer"],
-                    "sources": result["sources"],
-                    "scores": result["scores"]
+                    "content": content,
+                    "sources": sources,
+                    "scores": scores
                 })
             except Exception as e:
                 st.session_state.messages.append({
                     "role": "assistant",
-                    "content": f"⚠️ Error: {str(e)[:200]}",
+                    "content": f"⚠️ {friendly_error(e, 'Clinical Q&A')}",
                     "sources": [],
                     "scores": []
                 })
@@ -192,7 +209,7 @@ with tab3:
                     st.caption(f"Analyzed by: {result['model']}")
                     st.warning("⚠️ For educational purposes only.")
                 except Exception as e:
-                    st.error(f"EKG interpretation failed: {str(e)[:200]}")
+                    st.error(friendly_error(e, "EKG interpretation"))
     else:
         st.info("👆 Upload an EKG image to get started.")
 
@@ -232,19 +249,19 @@ with tab4:
                     with col2:
                         st.metric("Patient Weight", f"{result['weight_kg']} kg")
                     with col3:
-                        st.metric("Calculated Bolus", result["calculated_bolus"])
+                        st.metric(result["calc_label"], result["calculated_dose"])
                     st.divider()
                     st.markdown("### 📋 Clinical Guidance")
                     st.markdown(result["guidance"])
                     st.caption(f"Guidance by: {result['model']}")
                     st.warning("⚠️ Always verify with pharmacy and institutional protocols.")
             except Exception as e:
-                st.error(f"Dosing calculation failed: {str(e)[:200]}")
+                st.error(friendly_error(e, "Dosing guidance"))
 
 # ── TAB 5: Citation Checker ──────────────────────────────────────
 with tab5:
     st.markdown("### 📚 Citation Checker")
-    st.caption("Search 895 indexed passages from the 2023 ESC ACS Guidelines")
+    st.caption("Search 947 indexed passages from the 2023 ESC ACS Guidelines")
 
     search_query = st.text_input(
         "Search Guidelines",
@@ -280,4 +297,4 @@ with tab5:
                                 st.divider()
                                 st.markdown(cite['excerpt'])
                 except Exception as e:
-                    st.error(f"Citation search failed: {str(e)[:200]}")
+                    st.error(friendly_error(e, "Citation search"))

@@ -24,6 +24,7 @@ CARDIAC_DRUGS = {
         "infusion": "0.1-0.5 mcg/kg/min (cardiogenic shock)",
         "weight_based": True,
         "dose_per_kg": 0.1,
+        "calc_type": "infusion",
         "notes": "High alert medication. Verify concentration before administration."
     },
     "heparin": {
@@ -32,6 +33,7 @@ CARDIAC_DRUGS = {
         "infusion": "12-15 units/kg/hr (max 1000 units/hr)",
         "weight_based": True,
         "dose_per_kg": 60,
+        "max_dose": 5000,
         "notes": "Follow institutional heparin protocol. Monitor aPTT."
     },
     "metoprolol": {
@@ -78,7 +80,11 @@ def calculate_dose(drug: str, weight_kg: float) -> dict:
     if info.get("weight_based") and weight_kg > 0:
         dose_per_kg = info.get("dose_per_kg", 0)
         calculated_dose = dose_per_kg * weight_kg
-        info["calculated_bolus"] = f"{calculated_dose:.1f} {get_unit(drug)}"
+        capped = "max_dose" in info and calculated_dose > info["max_dose"]
+        if capped:
+            calculated_dose = info["max_dose"]
+        info["calculated_dose"] = f"{calculated_dose:.1f} {get_unit(drug)}" + (" (max dose)" if capped else "")
+        info["calc_label"] = "Calculated Infusion" if info.get("calc_type") == "infusion" else "Calculated Bolus"
         info["patient_weight"] = f"{weight_kg} kg"
 
     return info
@@ -86,7 +92,7 @@ def calculate_dose(drug: str, weight_kg: float) -> dict:
 def get_unit(drug: str) -> str:
     units = {
         "lidocaine": "mg",
-        "epinephrine": "mcg/min (infusion)",
+        "epinephrine": "mcg/min",
         "heparin": "units",
     }
     return units.get(drug, "mg")

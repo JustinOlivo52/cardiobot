@@ -48,7 +48,7 @@ Clinical Context: {clinical_context or 'Standard dosing request'}
 Pre-calculated dose information:
 - IV Bolus: {dose_info.get('iv_bolus', 'N/A')}
 - Infusion: {dose_info.get('infusion', 'N/A')}
-- Weight-based calculated dose: {dose_info.get('calculated_bolus', 'Fixed dose - not weight based')}
+- Weight-based calculated dose: {dose_info.get('calc_label', '')} {dose_info.get('calculated_dose', 'Fixed dose - not weight based')}
 - Notes: {dose_info.get('notes', 'None')}
 
 Please provide complete clinical dosing guidance for this patient.
@@ -71,21 +71,33 @@ Please provide complete clinical dosing guidance for this patient.
         except Exception as e:
             # Step 3b: Fall back to Claude if OpenAI is unavailable
             logger.warning(f"GPT-4 failed, falling back to Claude: {e}")
-            response = claude_client.messages.create(
-                model=CLAUDE_MODEL,
-                max_tokens=800,
-                system=DOSING_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            guidance = response.content[0].text
-            model_used = CLAUDE_MODEL
-            logger.info("Claude dosing guidance received")
+            try:
+                response = claude_client.messages.create(
+                    model=CLAUDE_MODEL,
+                    max_tokens=800,
+                    system=DOSING_SYSTEM_PROMPT,
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                guidance = response.content[0].text
+                model_used = CLAUDE_MODEL
+                logger.info("Claude dosing guidance received")
+            except Exception as e:
+                # Step 3c: Both providers down; the calculated dose is still valid
+                logger.error(f"Claude dosing fallback failed: {e}")
+                guidance = (
+                    "⚠️ AI guidance is temporarily unavailable. Reference dosing from the CardioBot drug database:\n\n"
+                    f"- **IV Bolus:** {dose_info.get('iv_bolus', 'N/A')}\n"
+                    f"- **Infusion:** {dose_info.get('infusion', 'N/A')}\n"
+                    f"- **Notes:** {dose_info.get('notes', 'None')}"
+                )
+                model_used = "CardioBot drug database (offline)"
 
         return {
             "drug": drug.upper(),
             "weight_kg": weight_kg,
             "indication": dose_info.get("indication"),
-            "calculated_bolus": dose_info.get("calculated_bolus", "Fixed dose"),
+            "calculated_dose": dose_info.get("calculated_dose", "Fixed dose"),
+            "calc_label": dose_info.get("calc_label", "Calculated Bolus"),
             "iv_bolus": dose_info.get("iv_bolus"),
             "infusion": dose_info.get("infusion"),
             "guidance": guidance,

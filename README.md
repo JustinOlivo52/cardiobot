@@ -76,7 +76,7 @@ Streamlit UI (Dark Theme, Multi-Tab)
 
 ### 💬 Clinical Q&A
 - RAG pipeline grounded in 2023 ESC ACS Guidelines
-- 895 indexed passages with semantic search
+- 947 indexed passages with semantic search
 - Source citations with relevance scores
 - Multi-turn conversation memory
 
@@ -165,7 +165,7 @@ cardiobot/
 ## ⚕️ Clinical Data Sources
 
 - **2023 ESC Guidelines for the Management of Acute Coronary Syndromes**
-  - 107 pages, 895 indexed passages
+  - 107 pages, 947 indexed passages
   - Covers: ACS, STEMI, NSTEMI, antiplatelet therapy, anticoagulation, reperfusion
 
 ---

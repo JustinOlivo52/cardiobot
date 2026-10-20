@@ -1,7 +1,7 @@
 streamlit
 anthropic
 openai
-google-generativeai
+google-genai
 langchain
 langgraph
 langchain-community
