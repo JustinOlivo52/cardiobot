@@ -236,6 +236,7 @@ with tab4:
                     st.divider()
                     st.markdown("### 📋 Clinical Guidance")
                     st.markdown(result["guidance"])
+                    st.caption(f"Guidance by: {result['model']}")
                     st.warning("⚠️ Always verify with pharmacy and institutional protocols.")
             except Exception as e:
                 st.error(f"Dosing calculation failed: {str(e)[:200]}")

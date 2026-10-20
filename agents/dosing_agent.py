@@ -1,11 +1,13 @@
+import anthropic
 from openai import OpenAI
-from config import OPENAI_API_KEY, GPT4_MODEL
+from config import OPENAI_API_KEY, GPT4_MODEL, ANTHROPIC_API_KEY, CLAUDE_MODEL
 from tools.calculator import calculate_dose, get_available_drugs
 from utils.logger import get_logger, CardioAPIError
 
 logger = get_logger(__name__)
 
 client = OpenAI(api_key=OPENAI_API_KEY)
+claude_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 DOSING_SYSTEM_PROMPT = """You are a clinical pharmacist specializing in cardiac medications.
 
@@ -54,17 +56,30 @@ Please provide complete clinical dosing guidance for this patient.
 
         # Step 3: Ask GPT-4
         logger.info(f"Requesting GPT-4 dosing guidance for {drug} ({weight_kg}kg)")
-        response = client.chat.completions.create(
-            model=GPT4_MODEL,
-            max_tokens=800,
-            messages=[
-                {"role": "system", "content": DOSING_SYSTEM_PROMPT},
-                {"role": "user", "content": prompt}
-            ]
-        )
-
-        guidance = response.choices[0].message.content
-        logger.info("GPT-4 dosing guidance received")
+        try:
+            response = client.chat.completions.create(
+                model=GPT4_MODEL,
+                max_tokens=800,
+                messages=[
+                    {"role": "system", "content": DOSING_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            guidance = response.choices[0].message.content
+            model_used = GPT4_MODEL
+            logger.info("GPT-4 dosing guidance received")
+        except Exception as e:
+            # Step 3b: Fall back to Claude if OpenAI is unavailable
+            logger.warning(f"GPT-4 failed, falling back to Claude: {e}")
+            response = claude_client.messages.create(
+                model=CLAUDE_MODEL,
+                max_tokens=800,
+                system=DOSING_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            guidance = response.content[0].text
+            model_used = CLAUDE_MODEL
+            logger.info("Claude dosing guidance received")
 
         return {
             "drug": drug.upper(),
@@ -74,6 +89,7 @@ Please provide complete clinical dosing guidance for this patient.
             "iv_bolus": dose_info.get("iv_bolus"),
             "infusion": dose_info.get("infusion"),
             "guidance": guidance,
+            "model": model_used,
             "status": "success"
         }
 
