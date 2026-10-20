@@ -1,13 +1,12 @@
-import anthropic
 from openai import OpenAI
-from config import OPENAI_API_KEY, GPT4_MODEL, ANTHROPIC_API_KEY, CLAUDE_MODEL
+from config import OPENAI_API_KEY, GPT4_MODEL, CLAUDE_MODEL, API_TIMEOUT_SECONDS, API_MAX_RETRIES
+from agents.claude_client import ask_claude
 from tools.calculator import calculate_dose, get_available_drugs
 from utils.logger import get_logger, CardioAPIError
 
 logger = get_logger(__name__)
 
-client = OpenAI(api_key=OPENAI_API_KEY)
-claude_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+client = OpenAI(api_key=OPENAI_API_KEY, timeout=API_TIMEOUT_SECONDS, max_retries=API_MAX_RETRIES)
 
 DOSING_SYSTEM_PROMPT = """You are a clinical pharmacist specializing in cardiac medications.
 
@@ -72,13 +71,12 @@ Please provide complete clinical dosing guidance for this patient.
             # Step 3b: Fall back to Claude if OpenAI is unavailable
             logger.warning(f"GPT-4 failed, falling back to Claude: {e}")
             try:
-                response = claude_client.messages.create(
-                    model=CLAUDE_MODEL,
-                    max_tokens=800,
-                    system=DOSING_SYSTEM_PROMPT,
-                    messages=[{"role": "user", "content": prompt}]
+                guidance = ask_claude(
+                    DOSING_SYSTEM_PROMPT,
+                    [{"role": "user", "content": prompt}],
+                    max_tokens=4096,
+                    effort="low"
                 )
-                guidance = response.content[0].text
                 model_used = CLAUDE_MODEL
                 logger.info("Claude dosing guidance received")
             except Exception as e:

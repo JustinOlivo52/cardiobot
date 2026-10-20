@@ -1,3 +1,4 @@
+import re
 from pypdf import PdfReader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from utils.logger import get_logger, CardioPDFError
@@ -28,3 +29,21 @@ def chunk_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> l
     chunks = splitter.split_text(text)
     logger.info(f"Split into {len(chunks)} chunks")
     return chunks
+
+PAGE_MARKER = re.compile(r"\[Page (\d+)\]")
+
+def assign_pages(chunks: list[str]) -> list[str | None]:
+    """
+    Return the page each chunk starts on. Only the chunk where a page begins
+    carries its "[Page N]" marker, so carry the last page seen forward.
+    """
+    pages, current = [], None
+    for chunk in chunks:
+        markers = list(PAGE_MARKER.finditer(chunk))
+        # A marker near the start (inside the chunk overlap) means the chunk begins on that page
+        if markers and markers[0].start() < 200:
+            current = markers[0].group(1)
+        pages.append(current)
+        if markers:
+            current = markers[-1].group(1)
+    return pages

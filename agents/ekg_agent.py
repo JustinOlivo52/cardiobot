@@ -1,14 +1,18 @@
 from google import genai
 from google.genai import types
-from config import GOOGLE_API_KEY
+from config import GOOGLE_API_KEY, VISION_MODEL, API_TIMEOUT_SECONDS, API_MAX_RETRIES
 from tools.image_tool import load_and_encode_image
 from utils.logger import get_logger, CardioImageError
 
 logger = get_logger(__name__)
 
-VISION_MODEL = "gemini-2.5-flash"
-
-client = genai.Client(api_key=GOOGLE_API_KEY)
+client = genai.Client(
+    api_key=GOOGLE_API_KEY,
+    http_options=types.HttpOptions(
+        timeout=API_TIMEOUT_SECONDS * 1000,  # milliseconds
+        retry_options=types.HttpRetryOptions(attempts=API_MAX_RETRIES + 1)
+    )
+)
 
 EKG_SYSTEM_PROMPT = """You are an expert cardiologist analyzing an ECG/EKG strip.
 

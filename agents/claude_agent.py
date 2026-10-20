@@ -1,12 +1,9 @@
-import anthropic
-from config import ANTHROPIC_API_KEY, CLAUDE_MODEL
+from agents.claude_client import ask_claude
 from agents.rag_agent import retrieve_context
 from prompts.clinical_prompts import CARDIOBOT_SYSTEM_PROMPT, build_rag_prompt
 from utils.logger import get_logger, CardioAPIError
 
 logger = get_logger(__name__)
-
-client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 def ask_cardiobot(question: str, conversation_history: list[dict] = None) -> dict:
     """
@@ -30,14 +27,7 @@ def ask_cardiobot(question: str, conversation_history: list[dict] = None) -> dic
 
         # Step 4: Ask Claude
         logger.info(f"Sending to Claude with {len(messages)} messages in history")
-        response = client.messages.create(
-            model=CLAUDE_MODEL,
-            max_tokens=1024,
-            system=CARDIOBOT_SYSTEM_PROMPT,
-            messages=messages
-        )
-
-        answer = response.content[0].text
+        answer = ask_claude(CARDIOBOT_SYSTEM_PROMPT, messages, max_tokens=4096, effort="low")
         logger.info("Claude responded successfully")
 
         return {

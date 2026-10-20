@@ -56,9 +56,9 @@ Streamlit UI (Dark Theme, Multi-Tab)
 ### Models & Their Roles
 | Model | Provider | Role |
 |---|---|---|
-| Claude Sonnet | Anthropic | Clinical reasoning + answer generation |
+| Claude Sonnet 5.5 | Anthropic | Clinical reasoning + answer generation |
 | Gemini 2.5 Flash | Google | EKG/ECG image interpretation |
-| GPT-4 | OpenAI | Drug dosing guidance |
+| GPT-4o | OpenAI | Drug dosing guidance (Claude as fallback) |
 | text-embedding-3-small | OpenAI | Document embeddings |
 
 ### Tech Stack
@@ -93,7 +93,7 @@ Streamlit UI (Dark Theme, Multi-Tab)
 - Contraindication flagging
 
 ### 📚 Citation Checker
-- Direct semantic search of ESC guidelines
+- Direct semantic search of ESC guidelines, with page numbers
 - Confidence scoring (High/Medium/Low)
 - Passage excerpts with source tracking
 
@@ -129,6 +129,28 @@ python ingest.py
 streamlit run app.py
 ```
 
+### Run the Tests
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+Tests use fake API keys and mocked providers, so they cost nothing to run. They also run automatically on every push via GitHub Actions.
+
+---
+
+## 🛡️ Reliability
+
+CardioBot is built to keep working when an AI provider has an outage or runs out of credits:
+
+| If this fails | CardioBot does this |
+|---|---|
+| OpenAI embeddings | Search falls back to BM25 keyword search over the same guideline passages |
+| GPT-4o (dosing) | Claude writes the dosing guidance instead |
+| Both GPT-4o and Claude | The calculator still shows the weight-based dose from its local drug database |
+| Any provider | Users see a plain-language message, not a raw API error |
+
+The sidebar's **System Status** panel makes a tiny live call to each provider, so a bad key or empty account shows up before a user hits it. Every API call has a timeout and automatic retries for brief network errors.
+
 ---
 
 ## 📁 Project Structure
@@ -138,16 +160,17 @@ cardiobot/
 ├── config.py               # Environment + model config
 ├── ingest.py               # PDF ingestion pipeline
 ├── agents/
+│   ├── claude_client.py    # Shared Claude client (timeouts, refusal fallback)
 │   ├── claude_agent.py     # RAG + Claude answer generation
 │   ├── ekg_agent.py        # Gemini Vision EKG interpreter
-│   ├── dosing_agent.py     # GPT-4 drug dosing
+│   ├── dosing_agent.py     # GPT-4o drug dosing, Claude fallback
 │   ├── doc_checker.py      # Citation search
 │   ├── rag_agent.py        # ChromaDB retrieval
 │   ├── router.py           # LangGraph query router
 │   └── graph.py            # LangGraph workflow
 ├── tools/
 │   ├── retriever.py        # PDF loader + chunker
-│   ├── embedder.py         # OpenAI embeddings + ChromaDB
+│   ├── embedder.py         # OpenAI embeddings + ChromaDB, BM25 fallback
 │   ├── calculator.py       # Drug dose calculations
 │   └── image_tool.py       # Image encoding utility
 ├── memory/
@@ -155,7 +178,9 @@ cardiobot/
 ├── prompts/
 │   └── clinical_prompts.py # System prompts
 ├── utils/
-│   └── logger.py           # Structured logging + exceptions
+│   ├── logger.py           # Structured logging, exceptions, friendly errors
+│   └── health.py           # Live provider health checks
+├── tests/                  # pytest suite (runs in GitHub Actions)
 └── data/
     └── sample_docs/        # PDF guidelines
 ```
@@ -199,8 +224,10 @@ This project combines 10+ years of clinical ER experience with modern AI enginee
 ## 🗺️ Roadmap
 
 ### ✅ Completed
-- [x] Multi-agent LangGraph architecture with semantic router
-- [x] Hybrid RAG pipeline with ChromaDB + OpenAI embeddings
+- [x] Provider fallbacks, live health checks, and automated tests in CI
+- [x] Page-level citations for every indexed passage
+- [x] Multi-agent LangGraph architecture with intent router
+- [x] RAG pipeline with ChromaDB + OpenAI embeddings, BM25 keyword fallback
 - [x] EKG interpretation via Gemini Vision
 - [x] Weight-based drug dosing calculator
 - [x] Citation checker with confidence scoring
@@ -212,7 +239,6 @@ This project combines 10+ years of clinical ER experience with modern AI enginee
 
 ### 📋 Planned
 - [ ] Add AHA and ACC guideline PDFs
-- [ ] Re-ingest with page number metadata for precise citations
 - [ ] Drug dose safety limiters and contraindication flagging
 - [ ] Pediatric weight-based dosing adjustments
 - [ ] Migrate to FastAPI backend for production scaling

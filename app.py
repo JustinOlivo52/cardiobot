@@ -1,5 +1,6 @@
 import streamlit as st
-from config import APP_TITLE, APP_SUBTITLE, DISCLAIMER, check_required_keys
+from config import APP_TITLE, APP_SUBTITLE, DISCLAIMER
+from utils.health import run_health_checks
 from agents.consult_agent import run_consult
 from agents.ekg_agent import interpret_ekg
 from agents.dosing_agent import get_dosing_guidance
@@ -28,9 +29,28 @@ with st.sidebar:
     st.markdown("*AI-Powered Clinical Cardiology Assistant*")
     st.divider()
 
-    key_status = check_required_keys()
-    all_systems_go = all(v for k, v in key_status.items() if k != "ollama")
-    st.markdown("🟢 System Online" if all_systems_go else "🔴 System Offline")
+    # Cached for 10 minutes across visitors so checks don't run on every click
+    @st.cache_data(ttl=600, show_spinner="Checking AI providers...")
+    def cached_health_checks():
+        return run_health_checks()
+
+    health = cached_health_checks()
+    online = sum(ok for ok, _ in health.values())
+    if online == len(health):
+        st.markdown("🟢 All Systems Online")
+    elif online:
+        st.markdown("🟡 Partially Online")
+    else:
+        st.markdown("🔴 System Offline")
+
+    with st.expander("🩺 System Status", expanded=online < len(health)):
+        for name, (ok, detail) in health.items():
+            st.caption(f"{'🟢' if ok else '🔴'} **{name}** — {detail}")
+        if not health["OpenAI"][0]:
+            st.caption("Search is running in keyword mode until OpenAI recovers.")
+        if st.button("🔄 Re-check", use_container_width=True):
+            cached_health_checks.clear()
+            st.rerun()
 
     st.divider()
 
@@ -57,7 +77,7 @@ st.markdown("""
         AI-Powered Clinical Cardiology Assistant
     </p>
     <p style='text-align: center; color: #8B949E; font-size: 0.85em;'>
-        Claude • Gemini • GPT-4 • ESC Guidelines • LangGraph
+        Claude Sonnet 5.5 • Gemini • GPT-4o • ESC Guidelines • LangGraph
     </p>
 """, unsafe_allow_html=True)
 st.divider()

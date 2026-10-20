@@ -1,11 +1,8 @@
-import anthropic
-from config import ANTHROPIC_API_KEY, CLAUDE_MODEL
+from agents.claude_client import ask_claude
 from agents.rag_agent import retrieve_context
 from utils.logger import get_logger, CardioAPIError
 
 logger = get_logger(__name__)
-
-client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 CONSULT_SYSTEM_PROMPT = """You are CardioBot, an AI cardiology consultant. 
 You receive patient presentations in the style of a clinical handoff and generate 
@@ -61,14 +58,12 @@ Generate a complete cardiology consult report for this patient."""
 
         logger.info(f"Running consult for: {presentation[:60]}...")
 
-        response = client.messages.create(
-            model=CLAUDE_MODEL,
-            max_tokens=2048,
-            system=CONSULT_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": prompt}]
+        report = ask_claude(
+            CONSULT_SYSTEM_PROMPT,
+            [{"role": "user", "content": prompt}],
+            max_tokens=8000,
+            effort="medium"
         )
-
-        report = response.content[0].text
         logger.info("Consult report generated successfully")
 
         return {

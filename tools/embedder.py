@@ -4,14 +4,14 @@ from collections import Counter
 from functools import lru_cache
 import chromadb
 from openai import OpenAI
-from config import OPENAI_API_KEY, CHROMA_PERSIST_DIR, CHROMA_COLLECTION
+from config import OPENAI_API_KEY, CHROMA_PERSIST_DIR, CHROMA_COLLECTION, EMBED_MODEL
+from tools.retriever import assign_pages
 from utils.logger import get_logger, CardioRetrievalError
 
 logger = get_logger(__name__)
 
-EMBED_MODEL = "text-embedding-3-small"
-
-client = OpenAI(api_key=OPENAI_API_KEY)
+# One retry and a short timeout: if OpenAI is down, get to the keyword fallback quickly
+client = OpenAI(api_key=OPENAI_API_KEY, timeout=15, max_retries=1)
 
 def get_chroma_client():
     return chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
@@ -37,6 +37,7 @@ def build_vector_store(chunks: list[str], source_name: str):
             logger.info(f"Resuming from chunk {already_done} for {source_name}")
 
         total = len(chunks)
+        pages = assign_pages(chunks)
         logger.info(f"Embedding {total - already_done} remaining chunks from {source_name}...")
 
         batch_size = 20
@@ -44,7 +45,10 @@ def build_vector_store(chunks: list[str], source_name: str):
             batch = chunks[i:i+batch_size]
             embeddings = [get_embedding(chunk) for chunk in batch]
             ids = [f"{source_name}_chunk_{i+j}" for j in range(len(batch))]
-            metadatas = [{"source": source_name, "chunk_index": i+j} for j in range(len(batch))]
+            metadatas = [
+                {"source": source_name, "chunk_index": i+j, "page": pages[i+j] or "Unknown"}
+                for j in range(len(batch))
+            ]
 
             collection.add(
                 documents=batch,
@@ -106,10 +110,8 @@ def _semantic_search(query: str, n_results: int) -> list[dict]:
     return hits
 
 # ── Page lookup ───────────────────────────────────────────────────
-# Only the chunk where a page begins carries its "[Page N]" marker, so walk
-# each source's chunks in order and carry the last page seen forward.
-_PAGE_RE = re.compile(r"\[Page (\d+)\]")
-
+# Chunks ingested after page metadata was added carry it directly; older
+# ones get it derived by walking each source's chunks in order.
 @lru_cache(maxsize=1)
 def _load_all_chunks():
     collection = get_chroma_client().get_collection(CHROMA_COLLECTION)
@@ -119,19 +121,16 @@ def _load_all_chunks():
 @lru_cache(maxsize=1)
 def _load_page_map() -> dict:
     ids, docs, metas = _load_all_chunks()
-    order = sorted(range(len(ids)), key=lambda i: (metas[i]["source"], metas[i].get("chunk_index", 0)))
+    by_source = {}
+    for i in sorted(range(len(ids)), key=lambda i: metas[i].get("chunk_index", 0)):
+        by_source.setdefault(metas[i]["source"], []).append(i)
 
-    page_map, current, current_source = {}, None, None
-    for i in order:
-        if metas[i]["source"] != current_source:
-            current, current_source = None, metas[i]["source"]
-        markers = list(_PAGE_RE.finditer(docs[i]))
-        # A marker near the start (inside the chunk overlap) means the chunk begins on that page
-        if markers and markers[0].start() < 200:
-            current = markers[0].group(1)
-        page_map[ids[i]] = current
-        if markers:
-            current = markers[-1].group(1)
+    page_map = {}
+    for indexes in by_source.values():
+        derived = assign_pages([docs[i] for i in indexes])
+        for i, page in zip(indexes, derived):
+            stored = metas[i].get("page")
+            page_map[ids[i]] = stored if stored and stored != "Unknown" else page
     return page_map
 
 # ── Keyword fallback (BM25 over the stored chunks, no API needed) ──
