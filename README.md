@@ -43,9 +43,9 @@ LangGraph Router ─────────────────────
     │                        ▼                             │
     │                   Claude Sonnet ◄── ESC Guidelines   │
     │                                                       │
-    ├── EKG Interpreter ──► Gemini Vision                  │
+    ├── EKG Interpreter ──► Claude Vision (Gemini backup)  │
     │                                                       │
-    ├── Drug Calculator ──► GPT-4 + Weight-Based Logic     │
+    ├── Drug Calculator ──► GPT-4o + Weight-Based Logic    │
     │                                                       │
     └── Citation Checker ──► ChromaDB Direct Search        │
                                                            │
@@ -57,7 +57,8 @@ Streamlit UI (Dark Theme, Multi-Tab)
 | Model | Provider | Role |
 |---|---|---|
 | Claude Sonnet 5.5 | Anthropic | Clinical reasoning + answer generation |
-| Gemini 2.5 Flash | Google | EKG/ECG image interpretation |
+| Claude Sonnet 5.5 Vision | Anthropic | EKG/ECG image interpretation |
+| Gemini 2.5 Flash | Google | EKG interpretation backup |
 | GPT-4o | OpenAI | Drug dosing guidance (Claude as fallback) |
 | text-embedding-3-small | OpenAI | Document embeddings |
 
@@ -82,7 +83,8 @@ Streamlit UI (Dark Theme, Multi-Tab)
 
 ### 📊 EKG Interpreter
 - Upload any EKG image (JPG, PNG, WebP)
-- Gemini Vision analyzes waveform patterns
+- Claude Vision analyzes waveform patterns, with Gemini Vision as automatic backup
+- Large photos are resized before sending for faster reads
 - Clinical format: **Impression first, breakdown second**
 - Systematic read: Rate → Rhythm → P Waves → QRS → ST → T Waves
 
@@ -147,6 +149,7 @@ CardioBot is built to keep working when an AI provider has an outage or runs out
 | OpenAI embeddings | Search falls back to BM25 keyword search over the same guideline passages |
 | GPT-4o (dosing) | Claude writes the dosing guidance instead |
 | Both GPT-4o and Claude | The calculator still shows the weight-based dose from its local drug database |
+| Claude (EKG) | Gemini Vision reads the EKG instead |
 | Any provider | Users see a plain-language message, not a raw API error |
 
 The sidebar's **System Status** panel makes a tiny live call to each provider, so a bad key or empty account shows up before a user hits it. Every API call has a timeout and automatic retries for brief network errors.
@@ -162,7 +165,7 @@ cardiobot/
 ├── agents/
 │   ├── claude_client.py    # Shared Claude client (timeouts, refusal fallback)
 │   ├── claude_agent.py     # RAG + Claude answer generation
-│   ├── ekg_agent.py        # Gemini Vision EKG interpreter
+│   ├── ekg_agent.py        # Claude Vision EKG reader, Gemini backup
 │   ├── dosing_agent.py     # GPT-4o drug dosing, Claude fallback
 │   ├── doc_checker.py      # Citation search
 │   ├── rag_agent.py        # ChromaDB retrieval
@@ -228,7 +231,7 @@ This project combines 10+ years of clinical ER experience with modern AI enginee
 - [x] Page-level citations for every indexed passage
 - [x] Multi-agent LangGraph architecture with intent router
 - [x] RAG pipeline with ChromaDB + OpenAI embeddings, BM25 keyword fallback
-- [x] EKG interpretation via Gemini Vision
+- [x] EKG interpretation via Claude Vision with Gemini fallback
 - [x] Weight-based drug dosing calculator
 - [x] Citation checker with confidence scoring
 - [x] Evaluation harness across 5 clinical test cases
