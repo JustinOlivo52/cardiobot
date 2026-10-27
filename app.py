@@ -77,7 +77,7 @@ st.markdown("""
         AI-Powered Clinical Cardiology Assistant
     </p>
     <p style='text-align: center; color: #8B949E; font-size: 0.85em;'>
-        Claude Sonnet 5.5 • Gemini • GPT-4o • ESC Guidelines • LangGraph
+        Claude Sonnet 5.5 • Gemini Vision • GPT-4o • ESC Guidelines • LangGraph
     </p>
 """, unsafe_allow_html=True)
 st.divider()
@@ -203,7 +203,7 @@ with tab2:
 # ── TAB 3: EKG Interpreter ───────────────────────────────────────
 with tab3:
     st.markdown("### 📊 EKG / ECG Interpreter")
-    st.caption("Upload an EKG strip for AI-powered interpretation using Gemini Vision")
+    st.caption("Upload an EKG strip for AI-powered interpretation using Claude Vision, with Gemini Vision as backup")
 
     col1, col2 = st.columns([2, 1])
     with col1:
@@ -220,7 +220,7 @@ with tab3:
         st.image(uploaded_file, caption="Uploaded EKG", use_container_width=True)
         st.divider()
         if st.button("🔍 Interpret EKG", type="primary", use_container_width=True):
-            with st.spinner("🧠 Gemini Vision analyzing EKG..."):
+            with st.spinner("🧠 Analyzing EKG (usually 15-30 seconds)..."):
                 try:
                     result = interpret_ekg(uploaded_file)
                     st.success("✅ Interpretation complete")

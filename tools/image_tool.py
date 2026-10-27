@@ -17,7 +17,7 @@ def load_and_encode_image(image_source) -> tuple[str, str]:
     try:
         if hasattr(image_source, 'read'):
             # Streamlit UploadedFile
-            image_bytes = image_source.read()
+            image_bytes = image_source.getvalue() if hasattr(image_source, "getvalue") else image_source.read()
             media_type = image_source.type or "image/jpeg"
         else:
             # File path
@@ -39,5 +39,30 @@ def load_and_encode_image(image_source) -> tuple[str, str]:
 
     except CardioImageError:
         raise
+    except Exception as e:
+        raise CardioImageError(f"Failed to process image: {e}")
+
+# Vision models gain nothing past ~1568px on the long side; bigger images
+# only add upload time and latency (a phone photo can be 4000px+)
+MAX_VISION_EDGE = 1568
+
+def prepare_for_vision(image_source) -> tuple[str, str]:
+    """
+    Load an image, shrink it to MAX_VISION_EDGE, and re-encode as JPEG.
+    JPEG is accepted by every vision provider (BMP is not).
+    Returns (base64_encoded_string, media_type)
+    """
+    encoded, _ = load_and_encode_image(image_source)
+    try:
+        image = Image.open(io.BytesIO(base64.b64decode(encoded)))
+        image = image.convert("RGB")
+        original = image.size
+        image.thumbnail((MAX_VISION_EDGE, MAX_VISION_EDGE))
+
+        buffer = io.BytesIO()
+        image.save(buffer, format="JPEG", quality=90)
+        logger.info(f"Prepared image for vision: {original} -> {image.size}, "
+                    f"{len(buffer.getvalue()) / 1024:.0f}KB")
+        return base64.b64encode(buffer.getvalue()).decode("utf-8"), "image/jpeg"
     except Exception as e:
         raise CardioImageError(f"Failed to process image: {e}")

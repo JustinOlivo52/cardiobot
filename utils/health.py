@@ -20,18 +20,15 @@ def _check_claude():
     )
 
 def _check_gemini():
-    from google.genai import types
+    # count_tokens validates the key without spending the free tier's small
+    # daily generation quota, which the EKG reader needs
     from agents.ekg_agent import client
-    client.models.generate_content(
-        model=VISION_MODEL,
-        contents="ping",
-        config=types.GenerateContentConfig(max_output_tokens=1)
-    )
+    client.models.count_tokens(model=VISION_MODEL, contents="ping")
 
 CHECKS = {
-    "Claude": ("Consult, Q&A, dosing backup", _check_claude),
+    "Claude": ("Consult, Q&A, EKG, dosing backup", _check_claude),
     "OpenAI": ("Semantic search, dosing", _check_openai),
-    "Gemini": ("EKG interpreter", _check_gemini),
+    "Gemini": ("EKG backup (key check only)", _check_gemini),
 }
 
 def run_health_checks() -> dict:

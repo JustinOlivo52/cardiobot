@@ -28,6 +28,10 @@ GPT4_MODEL        = "gpt-4o"
 VISION_MODEL      = "gemini-2.5-flash"
 EMBED_MODEL       = "text-embedding-3-small"
 
+# EKG reader order: first provider that succeeds wins. Claude runs on the paid
+# Anthropic account; Gemini's free tier has a small daily request quota.
+EKG_PROVIDERS     = ["claude", "gemini"]
+
 # ── API Reliability ───────────────────────────────────────────────
 API_TIMEOUT_SECONDS = 60   # Fail fast instead of hanging the UI
 API_MAX_RETRIES     = 2    # Retries transient errors (network, 429, 5xx)
